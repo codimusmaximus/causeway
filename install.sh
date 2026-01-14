@@ -33,7 +33,7 @@ uv sync --quiet 2>/dev/null || uv sync
 mkdir -p "$HOME/.local/bin"
 cat > "$HOME/.local/bin/causeway" << 'EOF'
 #!/bin/bash
-exec uv run --directory "$HOME/.causeway" causeway "$@"
+CAUSEWAY_CWD="$(pwd)" exec uv run --directory "$HOME/.causeway" causeway "$@"
 EOF
 chmod +x "$HOME/.local/bin/causeway"
 
