@@ -9,8 +9,8 @@ from dotenv import load_dotenv
 from pydantic import BaseModel
 from pydantic_ai import Agent
 
-# Load .env from the project root
-load_dotenv(Path(__file__).parent.parent / ".env")
+# Load .env from causeway directory
+load_dotenv(Path(__file__).parent / ".env")
 
 from db import init_db, get_connection
 from brain_mcp import call_tool

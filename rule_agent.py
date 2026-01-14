@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from pydantic_ai import Agent
 from openai import OpenAI
 
-load_dotenv(Path(__file__).parent.parent / ".env")
+load_dotenv(Path(__file__).parent / ".env")
 
 from db import get_connection, init_db, serialize_vector
 

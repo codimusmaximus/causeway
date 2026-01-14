@@ -30,6 +30,21 @@ def cmd_connect():
     """Connect causeway to Claude Code."""
     project_path = Path(ORIG_CWD)
 
+    # 0. Check for API key
+    env_file = CAUSEWAY_DIR / ".env"
+    api_key = os.environ.get("OPENAI_API_KEY", "")
+
+    if env_file.exists():
+        for line in env_file.read_text().splitlines():
+            if line.startswith("OPENAI_API_KEY="):
+                api_key = line.split("=", 1)[1].strip()
+
+    if not api_key:
+        api_key = input("Enter your OpenAI API key: ").strip()
+        if api_key:
+            env_file.write_text(f"OPENAI_API_KEY={api_key}\n")
+            print(f"Saved API key to {env_file}")
+
     # 1. Add hooks to current project
     settings_path = project_path / ".claude" / "settings.json"
     settings_path.parent.mkdir(parents=True, exist_ok=True)
