@@ -2,6 +2,8 @@
 
 Rule enforcement and learning for Claude Code.
 
+![Causeway Dashboard](screen.png)
+
 ## Install
 
 ```bash
