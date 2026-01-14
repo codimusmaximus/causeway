@@ -8,12 +8,7 @@ Causeway watches your Claude Code sessions and automatically learns your prefere
 
 ## How It Works
 
-1. **You work with Claude** - code, fix bugs, make changes
-2. **Causeway observes** - watches for corrections and preferences
-3. **Rules are created** - "use uv not pip", "don't modify config.py"
-4. **Future sessions enforce** - Claude is warned or blocked before repeating mistakes
-
-The feedback loop means Claude gets smarter about your codebase over time.
+Causeway hooks into Claude Code's pre-tool and stop events. When a session ends, it analyzes the conversation for corrections or preferences and creates rules. Before each tool call, it checks those rules and blocks or warns Claude if needed.
 
 ## Install
 
