@@ -3,7 +3,6 @@ set -e
 
 CONTAINER_NAME="claude-causeway-sandbox"
 IMAGE_NAME="claude-causeway-sandbox"
-UI_PORT="${CAUSEWAY_PORT:-8080}"
 
 # Stop and remove existing container if it exists
 if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
@@ -30,15 +29,26 @@ docker build -t "$IMAGE_NAME" "$SCRIPT_DIR"
 
 # Run the container
 echo "Starting container..."
-echo "Causeway UI will be available at http://localhost:$UI_PORT"
+echo ""
+echo "Exposed ports:"
+echo "  - 8080 -> Causeway UI"
+echo "  - 3000 -> Dev server (React, Next.js, etc.)"
+echo "  - 5173 -> Vite"
+echo "  - 4000 -> API server"
+echo ""
+
 docker run -it --name "$CONTAINER_NAME" \
     --cap-add=NET_ADMIN \
     --cap-add=NET_RAW \
-    -p "$UI_PORT:8000" \
+    -p 8080:8000 \
+    -p 3000:3000 \
+    -p 5173:5173 \
+    -p 4000:4000 \
     -v "$PROJECT_ROOT:/workspace" \
     -v claude-code-config:/home/node/.claude \
     -v claude-code-history:/commandhistory \
-    -v causeway-data:/home/node/.causeway \
+    -v causeway-db:/home/node/.causeway-data \
+    -e CAUSEWAY_DB=/home/node/.causeway-data/brain.db \
     -w /workspace \
     "$IMAGE_NAME" bash -c '
 echo "=========================================="

@@ -47,8 +47,8 @@ RUN SNIPPET="export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhisto
 ENV DEVCONTAINER=true
 
 # Create workspace and config directories
-RUN mkdir -p /workspace /home/node/.claude /home/node/.causeway && \
-  chown -R node:node /workspace /home/node/.claude /home/node/.causeway
+RUN mkdir -p /workspace /home/node/.claude /home/node/.causeway-data && \
+  chown -R node:node /workspace /home/node/.claude /home/node/.causeway-data
 
 WORKDIR /workspace
 
