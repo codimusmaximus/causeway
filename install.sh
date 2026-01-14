@@ -17,7 +17,8 @@ fi
 if [ -d "$INSTALL_DIR" ]; then
     echo "Updating..."
     cd "$INSTALL_DIR"
-    git pull --quiet
+    git fetch --quiet
+    git reset --hard origin/main --quiet
 else
     echo "Downloading..."
     git clone --quiet "$REPO" "$INSTALL_DIR"
