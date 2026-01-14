@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "causeway": {
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "/Users/alexanderleirvag/apps/Ongoing/nano_brain/causeway",
+        "python3",
+        "/Users/alexanderleirvag/apps/Ongoing/nano_brain/causeway/brain_mcp.py"
+      ],
+      "env": {
+        "CAUSEWAY_DB": "/Users/alexanderleirvag/apps/Ongoing/nano_brain/causeway/brain.db"
+      }
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --directory /Users/alexanderleirvag/apps/Ongoing/nano_brain/causeway python3 /Users/alexanderleirvag/apps/Ongoing/nano_brain/causeway/scripts/check_rules.py"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --directory /Users/alexanderleirvag/apps/Ongoing/nano_brain/causeway python3 /Users/alexanderleirvag/apps/Ongoing/nano_brain/causeway/learning_agent.py"
+          }
+        ]
+      }
+    ]
+  }
+}

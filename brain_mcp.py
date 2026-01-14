@@ -144,7 +144,8 @@ async def list_tools():
                     "tool": {"type": "string", "description": "Specific tool (Bash, Edit, Write) or omit for all"},
                     "action": {"type": "string", "description": "block (default), warn, or log"},
                     "llm_review": {"type": "boolean", "description": "If true, LLM reviews matched content before action"},
-                    "prompt": {"type": "string", "description": "Context for LLM review, e.g. 'Check if this weakens security'"}
+                    "prompt": {"type": "string", "description": "Context for LLM review, e.g. 'Check if this weakens security'"},
+                    "source_session_id": {"type": "integer", "description": "Session ID that created this rule (for tracking)"}
                 },
                 "required": ["description"]
             }
@@ -397,13 +398,14 @@ async def call_tool(name: str, arguments: dict):
             action = arguments.get("action", "block")
             llm_review = 1 if arguments.get("llm_review") else 0
             prompt = arguments.get("prompt")
+            source_session_id = arguments.get("source_session_id")
 
             cursor = conn.execute(
                 """INSERT INTO rules (type, pattern, patterns, description, problem, solution, tool, action, priority,
-                   llm_review, prompt)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)""",
+                   llm_review, prompt, source_session_id)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)""",
                 (rule_type, pattern, patterns, description, problem, solution, tool, action,
-                 llm_review, prompt)
+                 llm_review, prompt, source_session_id)
             )
             conn.commit()
             rule_id = cursor.lastrowid

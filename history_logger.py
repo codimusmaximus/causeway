@@ -213,6 +213,8 @@ def log_transcript(transcript_path: str, log_fn=None) -> dict:
         conn.commit()
 
         log(f"Logged {stats['messages']} messages, {stats['tool_calls']} tool calls")
+        stats['session_id'] = session_id
+        stats['project_path'] = cwd
         return stats
 
     finally:

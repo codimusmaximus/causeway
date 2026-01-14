@@ -56,6 +56,14 @@ def init_db():
         );
     """)
 
+    # Settings table
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        )
+    """)
+
     # New tables (v2 schema)
     conn.executescript("""
         -- Rule sets: groups of rules assignable to projects
@@ -128,11 +136,29 @@ def init_db():
             FOREIGN KEY (tool_call_id) REFERENCES tool_calls(id)
         );
 
+        -- Hook execution traces for debugging
+        CREATE TABLE IF NOT EXISTS traces (
+            id INTEGER PRIMARY KEY,
+            hook_type TEXT NOT NULL,  -- 'pre' or 'stop'
+            tool_name TEXT,
+            tool_input TEXT,
+            rules_checked INTEGER DEFAULT 0,
+            rules_matched INTEGER DEFAULT 0,
+            matched_rule_ids TEXT,  -- JSON array of matched rule IDs
+            decision TEXT,  -- 'allow', 'block', 'warn'
+            reason TEXT,
+            llm_prompt TEXT,  -- prompt sent to LLM (if any)
+            llm_response TEXT,  -- response from LLM (if any)
+            duration_ms INTEGER,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
         -- Indexes for performance
         CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);
         CREATE INDEX IF NOT EXISTS idx_tool_calls_message ON tool_calls(message_id);
         CREATE INDEX IF NOT EXISTS idx_rule_triggers_tool_call ON rule_triggers(tool_call_id);
         CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project_id);
+        CREATE INDEX IF NOT EXISTS idx_traces_timestamp ON traces(timestamp);
     """)
     conn.commit()
 
@@ -156,6 +182,8 @@ def _run_migrations(conn):
         conn.execute("ALTER TABLE rules ADD COLUMN rule_set_id INTEGER REFERENCES rule_sets(id)")
     if 'source_message_id' not in columns:
         conn.execute("ALTER TABLE rules ADD COLUMN source_message_id INTEGER REFERENCES messages(id)")
+    if 'source_session_id' not in columns:
+        conn.execute("ALTER TABLE rules ADD COLUMN source_session_id INTEGER REFERENCES sessions(id)")
 
     # Display fields (v3)
     if 'color' not in columns:
@@ -170,6 +198,8 @@ def _run_migrations(conn):
         conn.execute("ALTER TABLE rules ADD COLUMN llm_review INTEGER DEFAULT 0")  # 0=direct action, 1=LLM decides
     if 'prompt' not in columns:
         conn.execute("ALTER TABLE rules ADD COLUMN prompt TEXT")  # context/guidance for LLM review
+    if 'hard' not in columns:
+        conn.execute("ALTER TABLE rules ADD COLUMN hard INTEGER DEFAULT 0")  # 1=cannot be overridden by LLM
 
     # Create default rule set if none exists
     existing = conn.execute("SELECT id FROM rule_sets WHERE name = 'default'").fetchone()

@@ -48,25 +48,46 @@ class RuleContext:
 
 _rule_agent = None
 
-SYSTEM_PROMPT = """You are a rule enforcer reviewing tool calls.
+SYSTEM_PROMPT = """You are a rule enforcer. Only flag ACTUAL VIOLATIONS.
 
-For each rule, decide if the tool input violates it:
-- action=block: Security issue. Return approved=False, action="block"
-- action=warn: Style preference. Return approved=True, action="warn" with suggestion
+CRITICAL: If the input already complies with a rule, return action="allow".
+Do NOT suggest improvements or stylistic changes. Only flag violations.
 
-Use the rule's prompt field for guidance on what to check.
-If no violation, return approved=True, action="allow"."""
+Example: Rule "Use uv run" + Input "uv run uvicorn ..." → ALLOW (already uses uv run!)
+
+Rules are HARD or SOFT:
+- HARD: Security rules. MUST enforce, no exceptions.
+- SOFT: Preferences. Can be overridden with justification.
+
+OVERRIDE: If justification starts with "OVERRIDE:" + valid reason → allow SOFT rules.
+HARD rules cannot be overridden.
+
+Only return action="block" or "warn" if input ACTUALLY VIOLATES the rule.
+If compliant or irrelevant → action="allow"."""
+
+
+def get_setting(key: str, default: str) -> str:
+    """Get a setting from DB or return default."""
+    try:
+        conn = get_connection()
+        row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+        conn.close()
+        return row['value'] if row else default
+    except Exception:
+        return default
 
 
 def get_rule_agent() -> Agent:
     global _rule_agent
-    if _rule_agent is None:
-        _rule_agent = Agent(
-            'openai:gpt-4o-mini',
-            output_type=RuleDecision,
-            system_prompt=SYSTEM_PROMPT,
-            deps_type=RuleContext,
-        )
+    # Always recreate to pick up settings changes
+    model = get_setting('eval_model', 'openai:gpt-4o')
+    prompt = get_setting('eval_prompt', SYSTEM_PROMPT)
+    _rule_agent = Agent(
+        model,
+        output_type=RuleDecision,
+        system_prompt=prompt,
+        deps_type=RuleContext,
+    )
     return _rule_agent
 
 
@@ -169,24 +190,26 @@ async def check_llm_review(rules: list[dict], tool_name: str, tool_input: str) -
     if not rules:
         return RuleDecision(approved=True, action="allow", comment="No review needed")
 
+    # Limit to 5 most relevant rules
+    rules = rules[:5]
     rules_text = []
     for r in rules:
-        rule_str = f"Rule #{r['id']} ({r['action']}): {r['description']}"
+        rule_str = f"Rule #{r['id']} ({r['action']}): {r['description'][:100]}"
         if r.get('prompt'):
-            rule_str += f"\n  Check: {r['prompt']}"
+            rule_str += f"\n  Check: {r['prompt'][:100]}"
         rules_text.append(rule_str)
 
     agent = get_rule_agent()
     result = await agent.run(f"""Tool: {tool_name}
 Input:
 ```
-{tool_input[:2000]}
+{tool_input[:1000]}
 ```
 
 Rules to evaluate:
 {chr(10).join(rules_text)}
 
-For each rule, does this input violate it? Consider the rule's "Check" prompt for guidance.""")
+For each rule, does this input violate it?""")
 
     return result.output
 
@@ -266,35 +289,33 @@ async def check_semantic_rules(tool_name: str, tool_input: str) -> RuleDecision:
     if not rules:
         return RuleDecision(approved=True, action="allow", comment="No semantic rules")
 
-    close_rules = [r for r in rules if r.get('match_type') == 'keyword' or (r['distance'] and r['distance'] < 1.2)]
+    close_rules = [r for r in rules if r.get('match_type') == 'keyword' or (r['distance'] and r['distance'] < 0.8)]
 
     if not close_rules:
         return RuleDecision(approved=True, action="allow", comment="No relevant rules")
 
+    # Limit to 5 rules, compact format
+    close_rules = close_rules[:5]
     rules_text = []
     for r in close_rules:
-        rule_str = f"- Rule #{r['id']} ({r['action']}): {r['description']}"
-        if r.get('problem'):
-            rule_str += f"\n    Problem: {r['problem']}"
+        rule_str = f"- #{r['id']} ({r['action']}): {r['description'][:80]}"
         if r.get('solution'):
-            rule_str += f"\n    Solution: {r['solution']}"
-        if r.get('prompt'):
-            rule_str += f"\n    Check: {r['prompt']}"
+            rule_str += f" → {r['solution'][:60]}"
         rules_text.append(rule_str)
 
     agent = get_rule_agent()
     result = await agent.run(f"""Tool: {tool_name}
 Input: {tool_input[:500]}
 
-Relevant rules:
+Rules:
 {chr(10).join(rules_text)}
 
-Does this input violate any rule?""")
+Violates any rule?""")
 
     return result.output
 
 
-async def check_with_agent(tool_name: str, tool_input: str) -> RuleDecision:
+async def check_with_agent(tool_name: str, tool_input: str, justification: str = None) -> RuleDecision:
     """Check tool input against all rules."""
     init_db()
 
@@ -303,14 +324,70 @@ async def check_with_agent(tool_name: str, tool_input: str) -> RuleDecision:
     if not passed:
         return RuleDecision(approved=False, action=action or "block", comment=reason or "Blocked")
 
-    # 2. LLM review for matched regex rules with llm_review=true
-    if llm_reviews:
-        result = await check_llm_review(llm_reviews, tool_name, tool_input)
-        if not result.approved or result.action == "warn":
-            return result
+    # 2. Find semantic rules (embedding search)
+    semantic_rules = find_semantic_rules(tool_name, tool_input)
+    close_semantic = [r for r in semantic_rules if r.get('match_type') == 'keyword' or (r['distance'] and r['distance'] < 0.8)]
 
-    # 3. Semantic rules (embedding search + LLM)
-    return await check_semantic_rules(tool_name, tool_input)
+    # 3. Combine all rules needing LLM review into ONE call
+    all_rules_for_llm = []
+
+    # Add llm_review regex rules
+    for r in llm_reviews:
+        all_rules_for_llm.append({
+            'id': r['id'],
+            'description': r['description'],
+            'action': r['action'],
+            'prompt': r.get('prompt'),
+            'hard': r.get('hard', 0),
+            'source': 'regex+llm'
+        })
+
+    # Add semantic rules
+    for r in close_semantic:
+        all_rules_for_llm.append({
+            'id': r['id'],
+            'description': r['description'],
+            'action': r['action'],
+            'prompt': r.get('prompt'),
+            'problem': r.get('problem'),
+            'solution': r.get('solution'),
+            'hard': r.get('hard', 0),
+            'source': 'semantic'
+        })
+
+    if not all_rules_for_llm:
+        return RuleDecision(approved=True, action="allow", comment="No rules to check")
+
+    # Single LLM call for all rules
+    return await check_rules_with_llm(all_rules_for_llm, tool_name, tool_input, justification)
+
+
+async def check_rules_with_llm(rules: list[dict], tool_name: str, tool_input: str, justification: str = None) -> RuleDecision:
+    """Single LLM call to evaluate all identified rules."""
+    # Limit to 5 most relevant rules
+    rules = rules[:5]
+    rules_text = []
+    for r in rules:
+        hard_label = "HARD" if r.get('hard') else "SOFT"
+        rule_str = f"- [{hard_label}] #{r['id']} ({r['action']}): {r['description'][:80]}"
+        if r.get('solution'):
+            rule_str += f" → {r['solution'][:60]}"
+        rules_text.append(rule_str)
+
+    justification_text = ""
+    if justification:
+        justification_text = f"\nJustification: {justification[:200]}\n"
+
+    agent = get_rule_agent()
+    result = await agent.run(f"""Tool: {tool_name}
+Input: {tool_input[:800]}
+{justification_text}
+Rules:
+{chr(10).join(rules_text)}
+
+Violates any rule?""")
+
+    return result.output
 
 
 def ensure_rule_embedding(rule_id: int, description: str):
