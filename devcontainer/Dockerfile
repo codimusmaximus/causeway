@@ -89,9 +89,10 @@ RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
 # Install Causeway
 RUN curl -fsSL https://raw.githubusercontent.com/codimusmaximus/causeway/main/install.sh | bash
 
-# Fix sqlite-vec architecture issue - rebuild from source
-RUN /home/node/.causeway/.venv/bin/pip uninstall sqlite-vec -y && \
-    /home/node/.causeway/.venv/bin/pip install sqlite-vec --no-binary :all:
+# Fix sqlite-vec architecture issue - reinstall with prerelease
+RUN cd /home/node/.causeway && \
+    uv pip uninstall sqlite-vec && \
+    uv pip install sqlite-vec --prerelease=allow
 
 # Copy and set up firewall script
 COPY init-firewall.sh /usr/local/bin/
