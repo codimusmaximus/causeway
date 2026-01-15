@@ -90,7 +90,7 @@ if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
 fi
 
 # Initial ping (version check + telemetry) - curl only, no deps
-bash "$INSTALL_DIR/scripts/ping.sh" --silent 2>/dev/null &
+bash "$INSTALL_DIR/causeway/hooks/ping.sh" --silent 2>/dev/null &
 
 echo ""
 echo "Done! Run: causeway connect"
