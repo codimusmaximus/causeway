@@ -9,7 +9,11 @@ import urllib.request
 import json
 from pathlib import Path
 
-from .db import get_db_path
+# Handle both direct execution and module import
+try:
+    from .db import get_db_path
+except ImportError:
+    from db import get_db_path
 
 VERSION = "0.1.0"
 API_URL = "https://causeway-api.fly.dev"
