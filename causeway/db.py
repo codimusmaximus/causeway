@@ -5,12 +5,35 @@ import sqlite_vec
 import numpy as np
 from pathlib import Path
 
-DB_PATH = Path(os.environ.get("CAUSEWAY_DB", Path(__file__).parent / "brain.db"))
+
+def get_db_path() -> Path:
+    """Get database path - project-local .causeway/brain.db or env override."""
+    if env_path := os.environ.get("CAUSEWAY_DB"):
+        return Path(env_path)
+
+    # Look for .causeway/ in current directory or parents
+    # CAUSEWAY_CWD is set by CLI when it changes to package dir for uv
+    cwd = Path(os.environ.get("CAUSEWAY_CWD", os.getcwd()))
+    for parent in [cwd] + list(cwd.parents):
+        candidate = parent / ".causeway" / "brain.db"
+        if candidate.exists():
+            return candidate
+        # Stop at home directory
+        if parent == Path.home():
+            break
+
+    # Default: .causeway/ in current working directory
+    return cwd / ".causeway" / "brain.db"
 
 
-def get_connection() -> sqlite3.Connection:
+# For backwards compatibility
+DB_PATH = get_db_path()
+
+
+def get_connection(db_path: Path | None = None) -> sqlite3.Connection:
     """Get database connection with vec extension loaded."""
-    conn = sqlite3.connect(str(DB_PATH))
+    path = db_path or get_db_path()
+    conn = sqlite3.connect(str(path))
     conn.enable_load_extension(True)
     sqlite_vec.load(conn)
     conn.enable_load_extension(False)
@@ -23,9 +46,12 @@ def serialize_vector(vec: list[float]) -> bytes:
     return np.array(vec, dtype=np.float32).tobytes()
 
 
-def init_db():
+def init_db(db_path: Path | None = None):
     """Initialize database with base schema."""
-    conn = get_connection()
+    path = db_path or get_db_path()
+    # Create .causeway/ directory if needed
+    path.parent.mkdir(parents=True, exist_ok=True)
+    conn = get_connection(path)
 
     # Core tables (legacy-compatible rules table first)
     conn.executescript("""
@@ -165,6 +191,7 @@ def init_db():
     # Run migrations (adds columns to existing tables)
     _run_migrations(conn)
     conn.close()
+    return path
 
 
 def _run_migrations(conn):
@@ -210,5 +237,5 @@ def _run_migrations(conn):
 
 
 if __name__ == "__main__":
-    init_db()
-    print(f"Database initialized at {DB_PATH}")
+    path = init_db()
+    print(f"Database initialized at {path}")

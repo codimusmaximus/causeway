@@ -27,11 +27,19 @@ except ImportError:
 
 def cmd_init():
     """Initialize causeway in current directory."""
-    # Init database
+    from rich.console import Console
+    console = Console()
+
+    project_path = Path(ORIG_CWD)
+    causeway_dir = project_path / ".causeway"
+    db_path = causeway_dir / "brain.db"
+
+    # Init database in project's .causeway/ folder
     sys.path.insert(0, str(CAUSEWAY_DIR))
     from db import init_db
-    init_db()
-    print("Initialized causeway database")
+    init_db(db_path)
+
+    console.print(f"[green]✓[/green] Initialized database at [dim]{db_path}[/dim]")
 
 def load_config():
     """Load existing config from .env file."""
@@ -64,15 +72,15 @@ def get_install_id():
 
 
 def register_user(email: str, provider: str):
-    """Register user with API."""
+    """Register user with API (subscribes to updates)."""
     try:
         data = {
             "install_id": get_install_id(),
             "email": email,
-            "provider": provider,
+            "source": "cli",
         }
         req = urllib.request.Request(
-            f"{API_URL}/register",
+            f"{API_URL}/subscribe",
             data=json.dumps(data).encode(),
             headers={"Content-Type": "application/json"},
             method="POST"
@@ -229,8 +237,18 @@ def cmd_connect():
     console = Console()
     project_path = Path(ORIG_CWD)
 
-    # Interactive setup
+    # Interactive setup (global config - API keys, etc.)
     interactive_setup()
+
+    # Create project-local .causeway/ folder and initialize database
+    causeway_local = project_path / ".causeway"
+    causeway_local.mkdir(parents=True, exist_ok=True)
+    db_path = causeway_local / "brain.db"
+
+    sys.path.insert(0, str(CAUSEWAY_DIR))
+    from db import init_db
+    init_db(db_path)
+    console.print(f"[green]✓[/green] Initialized database at [dim]{db_path}[/dim]")
 
     # 1. Add hooks to current project
     settings_path = project_path / ".claude" / "settings.json"
@@ -269,24 +287,7 @@ def cmd_connect():
     settings_path.write_text(json.dumps(settings, indent=2))
     console.print(f"[green]\u2713[/green] Added hooks to [dim]{settings_path}[/dim]")
 
-    # 2. Add MCP server globally
-    mcp_path = Path.home() / ".claude" / "mcp_servers.json"
-    mcp_path.parent.mkdir(parents=True, exist_ok=True)
-
-    servers = {}
-    if mcp_path.exists():
-        servers = json.loads(mcp_path.read_text())
-
-    servers["causeway"] = {
-        "command": "uv",
-        "args": ["run", "--directory", str(CAUSEWAY_ROOT), "causeway-mcp"],
-        "env": {"CAUSEWAY_DB": str(CAUSEWAY_DIR / "brain.db")}
-    }
-
-    mcp_path.write_text(json.dumps(servers, indent=2))
-    console.print(f"[green]\u2713[/green] Added MCP server to [dim]{mcp_path}[/dim]")
-
-    # 3. Also add project-level .mcp.json
+    # 2. Add project-level .mcp.json with project-local database
     project_mcp = project_path / ".mcp.json"
     project_servers = {}
     if project_mcp.exists():
@@ -297,7 +298,7 @@ def cmd_connect():
         "type": "stdio",
         "command": "uv",
         "args": ["run", "--directory", str(CAUSEWAY_ROOT), "causeway-mcp"],
-        "env": {"CAUSEWAY_DB": str(CAUSEWAY_DIR / "brain.db")}
+        "env": {"CAUSEWAY_DB": str(db_path)}
     }
 
     project_mcp.write_text(json.dumps(project_servers, indent=2))

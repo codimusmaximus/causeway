@@ -9,15 +9,17 @@ import urllib.request
 import json
 from pathlib import Path
 
+from .db import get_db_path
+
 VERSION = "0.1.0"
 API_URL = "https://causeway-api.fly.dev"
 
 app = FastAPI(title="causeway", docs_url="/api/docs")
-DB_PATH = Path(os.environ.get("CAUSEWAY_DB", Path(__file__).parent / "brain.db"))
 
 
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
+    db_path = get_db_path()
+    conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
     return conn
 

@@ -40,20 +40,25 @@ def setup_hooks(project_path: Path):
     print(f"Updated hooks in {settings_path}")
 
 
-def setup_mcp():
-    """Add causeway MCP server to global config."""
-    mcp_path = get_mcp_settings_path()
-    mcp_path.parent.mkdir(parents=True, exist_ok=True)
+def setup_mcp(project_path: Path):
+    """Add causeway MCP server to project-level config."""
+    # Database is now project-local
+    db_path = project_path / ".causeway" / "brain.db"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+
+    mcp_path = project_path / ".mcp.json"
 
     servers = {}
     if mcp_path.exists():
         servers = json.loads(mcp_path.read_text())
 
-    servers["causeway"] = {
+    mcp_servers = servers.setdefault("mcpServers", {})
+    mcp_servers["causeway"] = {
+        "type": "stdio",
         "command": "python3",
-        "args": [str(CAUSEWAY_DIR / "brain_mcp.py")],
+        "args": [str(CAUSEWAY_DIR / "mcp.py")],
         "env": {
-            "CAUSEWAY_DB": str(CAUSEWAY_DIR / "brain.db")
+            "CAUSEWAY_DB": str(db_path)
         }
     }
 
@@ -63,16 +68,16 @@ def setup_mcp():
 
 def print_usage():
     print("""
-causeway setup
+causeway setup (LEGACY - use 'causeway connect' instead)
 
 Usage:
     python setup.py hooks <project-path>   Add pre-tool hooks to a project
-    python setup.py mcp                    Add MCP server globally
+    python setup.py mcp <project-path>     Add MCP server to project
     python setup.py all <project-path>     Setup both hooks and MCP
 
 Examples:
     python setup.py hooks /path/to/my-project
-    python setup.py mcp
+    python setup.py mcp /path/to/my-project
     python setup.py all .
 """)
 
@@ -91,14 +96,18 @@ def main():
         setup_hooks(Path(sys.argv[2]).resolve())
 
     elif cmd == "mcp":
-        setup_mcp()
+        if len(sys.argv) < 3:
+            print("Error: project path required")
+            sys.exit(1)
+        setup_mcp(Path(sys.argv[2]).resolve())
 
     elif cmd == "all":
         if len(sys.argv) < 3:
             print("Error: project path required")
             sys.exit(1)
-        setup_hooks(Path(sys.argv[2]).resolve())
-        setup_mcp()
+        project = Path(sys.argv[2]).resolve()
+        setup_hooks(project)
+        setup_mcp(project)
 
     else:
         print_usage()

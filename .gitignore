@@ -32,6 +32,9 @@ Thumbs.db
 .claude/
 .mcp.json
 
+# Causeway local config
+.causeway/
+
 # Testing
 .pytest_cache/
 .coverage
