@@ -9,11 +9,7 @@ import urllib.request
 import json
 from pathlib import Path
 
-# Handle both direct execution and module import
-try:
-    from .db import get_db_path
-except ImportError:
-    from db import get_db_path
+from .db import get_db_path
 
 VERSION = "0.1.0"
 API_URL = "https://causeway-api.fly.dev"
@@ -243,6 +239,7 @@ def get_session(session_id: int):
 
 @app.get("/api/stats")
 def get_stats():
+    db_path = get_db_path()
     conn = get_db()
     stats = {
         'total': conn.execute("SELECT COUNT(*) as c FROM rules").fetchone()['c'],
@@ -250,6 +247,8 @@ def get_stats():
         'block': conn.execute("SELECT COUNT(*) as c FROM rules WHERE action = 'block' AND active = 1").fetchone()['c'],
         'warn': conn.execute("SELECT COUNT(*) as c FROM rules WHERE action = 'warn' AND active = 1").fetchone()['c'],
         'llm_review': conn.execute("SELECT COUNT(*) as c FROM rules WHERE llm_review = 1 AND active = 1").fetchone()['c'],
+        'db_path': str(db_path),
+        'project_folder': str(db_path.parent.parent) if db_path.parent.name == '.causeway' else str(db_path.parent),
     }
     conn.close()
     return stats
@@ -374,7 +373,9 @@ HTML = '''<!DOCTYPE html>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { background: #111; color: #eee; font: 13px/1.5 'SF Mono', Monaco, monospace; padding: 20px; }
-        h1 { font-size: 16px; font-weight: 600; margin-bottom: 16px; color: #888; }
+        h1 { font-size: 16px; font-weight: 600; margin-bottom: 4px; color: #888; }
+        .project-info { font-size: 11px; color: #555; margin-bottom: 16px; }
+        .project-info span { color: #888; }
         .stats { display: flex; gap: 24px; margin-bottom: 24px; padding: 12px 16px; background: #1a1a1a; border-radius: 6px; }
         .stat { text-align: center; }
         .stat-val { font-size: 20px; font-weight: 700; color: #fff; }
@@ -485,6 +486,7 @@ HTML = '''<!DOCTYPE html>
 </head>
 <body>
     <h1>causeway</h1>
+    <div class="project-info" id="project-info"></div>
 
     <div class="banner" id="update-banner">
         <div class="banner-text">
@@ -677,6 +679,7 @@ async function load() {
         <div class="stat"><div class="stat-val">${stats.llm_review}</div><div class="stat-lbl">llm review</div></div>
         <div class="stat"><div class="stat-val">${stats.total}</div><div class="stat-lbl">total</div></div>
     `;
+    document.getElementById('project-info').innerHTML = esc(stats.project_folder);
 
     filter();
 }

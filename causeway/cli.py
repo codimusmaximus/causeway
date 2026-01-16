@@ -42,7 +42,7 @@ def cmd_init():
     console.print(f"[green]✓[/green] Initialized database at [dim]{db_path}[/dim]")
 
 def load_config():
-    """Load existing config from .env file."""
+    """Load existing config from global .env file."""
     env_file = CAUSEWAY_DIR / ".env"
     config = {}
     if env_file.exists():
@@ -54,7 +54,7 @@ def load_config():
 
 
 def save_config(config: dict):
-    """Save config to .env file."""
+    """Save config to global .env file."""
     env_file = CAUSEWAY_DIR / ".env"
     lines = [f"{k}={v}" for k, v in config.items()]
     env_file.write_text("\n".join(lines) + "\n")
@@ -230,28 +230,18 @@ def interactive_setup():
 
 
 def cmd_connect():
-    """Connect causeway to Claude Code."""
+    """Connect causeway to Claude Code globally."""
     from rich.console import Console
     from rich.panel import Panel
 
     console = Console()
-    project_path = Path(ORIG_CWD)
+    home = Path.home()
 
     # Interactive setup (global config - API keys, etc.)
     interactive_setup()
 
-    # Create project-local .causeway/ folder and initialize database
-    causeway_local = project_path / ".causeway"
-    causeway_local.mkdir(parents=True, exist_ok=True)
-    db_path = causeway_local / "brain.db"
-
-    sys.path.insert(0, str(CAUSEWAY_DIR))
-    from db import init_db
-    init_db(db_path)
-    console.print(f"[green]✓[/green] Initialized database at [dim]{db_path}[/dim]")
-
-    # 1. Add hooks to current project
-    settings_path = project_path / ".claude" / "settings.json"
+    # 1. Add global hooks to ~/.claude/settings.json
+    settings_path = home / ".claude" / "settings.json"
     settings_path.parent.mkdir(parents=True, exist_ok=True)
 
     settings = {}
@@ -260,11 +250,25 @@ def cmd_connect():
 
     hooks = settings.setdefault("hooks", {})
 
+    # All hooks use bash wrapper to capture cwd before uv's --directory changes it
+    uv_cmd = f"CAUSEWAY_CWD=$(pwd) uv run --directory {CAUSEWAY_ROOT}"
+
+    # SessionStart hook: init DB in current folder + version check
+    hooks["SessionStart"] = [
+        {
+            "matcher": "*",
+            "hooks": [
+                {"type": "command", "command": f"bash -c '{uv_cmd} causeway-init'"},
+                {"type": "command", "command": f"bash {CAUSEWAY_DIR}/hooks/ping.sh"}
+            ]
+        }
+    ]
+
     # Pre-tool hook: check rules before execution
     hooks["PreToolUse"] = [
         {
             "matcher": "*",
-            "hooks": [{"type": "command", "command": f"uv run --directory {CAUSEWAY_ROOT} causeway-check"}]
+            "hooks": [{"type": "command", "command": f"bash -c '{uv_cmd} causeway-check'"}]
         }
     ]
 
@@ -272,41 +276,32 @@ def cmd_connect():
     hooks["Stop"] = [
         {
             "matcher": "*",
-            "hooks": [{"type": "command", "command": f"uv run --directory {CAUSEWAY_ROOT} causeway-learn"}]
-        }
-    ]
-
-    # SessionStart hook: version check and telemetry (curl only, no deps)
-    hooks["SessionStart"] = [
-        {
-            "matcher": "*",
-            "hooks": [{"type": "command", "command": f"bash {CAUSEWAY_DIR}/hooks/ping.sh"}]
+            "hooks": [{"type": "command", "command": f"bash -c '{uv_cmd} causeway-learn'"}]
         }
     ]
 
     settings_path.write_text(json.dumps(settings, indent=2))
-    console.print(f"[green]\u2713[/green] Added hooks to [dim]{settings_path}[/dim]")
+    console.print(f"[green]\u2713[/green] Added global hooks to [dim]{settings_path}[/dim]")
 
-    # 2. Add project-level .mcp.json with project-local database
-    project_mcp = project_path / ".mcp.json"
-    project_servers = {}
-    if project_mcp.exists():
-        project_servers = json.loads(project_mcp.read_text())
+    # 2. Add global MCP to ~/.mcp.json (uses bash wrapper to capture cwd before uv changes it)
+    global_mcp = home / ".mcp.json"
+    mcp_config = {}
+    if global_mcp.exists():
+        mcp_config = json.loads(global_mcp.read_text())
 
-    mcp_servers = project_servers.setdefault("mcpServers", {})
+    mcp_servers = mcp_config.setdefault("mcpServers", {})
     mcp_servers["causeway"] = {
         "type": "stdio",
-        "command": "uv",
-        "args": ["run", "--directory", str(CAUSEWAY_ROOT), "causeway-mcp"],
-        "env": {"CAUSEWAY_DB": str(db_path)}
+        "command": "bash",
+        "args": ["-c", f"CAUSEWAY_CWD=$(pwd) uv run --directory {CAUSEWAY_ROOT} causeway-mcp"]
     }
 
-    project_mcp.write_text(json.dumps(project_servers, indent=2))
-    console.print(f"[green]\u2713[/green] Added MCP server to [dim]{project_mcp}[/dim]")
+    global_mcp.write_text(json.dumps(mcp_config, indent=2))
+    console.print(f"[green]\u2713[/green] Added global MCP server to [dim]{global_mcp}[/dim]")
 
     console.print()
     console.print(Panel.fit(
-        "[bold]Restart Claude Code to activate[/bold]",
+        "[bold]Restart Claude Code to activate[/bold]\n[dim]Causeway will auto-init a database in each project folder[/dim]",
         border_style="cyan"
     ))
 
@@ -362,9 +357,11 @@ def cmd_list():
         print(f"#{r['id']:3} [{r['action']:5}] {r['description']}")
 
 def cmd_ui():
-    """Start the dashboard UI."""
-    os.chdir(CAUSEWAY_DIR)
-    os.execvp("python3", ["python3", "server.py"])
+    """Start the dashboard UI for the current project."""
+    # Set CAUSEWAY_CWD so the server finds the right DB
+    os.environ["CAUSEWAY_CWD"] = ORIG_CWD
+    os.chdir(CAUSEWAY_ROOT)
+    os.execvp("python3", ["python3", "-m", "causeway.server"])
 
 
 def cmd_setup(reset: bool = False):

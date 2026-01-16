@@ -24,6 +24,7 @@ causeway = "causeway.cli:main"
 causeway-mcp = "causeway.mcp:run"
 causeway-check = "causeway.hooks.check_rules:main"
 causeway-learn = "causeway.learning_agent:main"
+causeway-init = "causeway.hooks.init_db:main"
 
 [build-system]
 requires = ["hatchling"]
