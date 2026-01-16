@@ -364,6 +364,86 @@ def cmd_ui():
     os.execvp("python3", ["python3", "-m", "causeway.server"])
 
 
+def cmd_update():
+    """Update causeway to the latest version."""
+    from rich.console import Console
+    console = Console()
+
+    install_dir = Path.home() / ".causeway"
+
+    if not install_dir.exists():
+        console.print("[red]Causeway not installed at ~/.causeway[/red]")
+        console.print("Run: curl -fsSL https://raw.githubusercontent.com/codimusmaximus/causeway/main/install.sh | bash")
+        sys.exit(1)
+
+    console.print("[cyan]Updating causeway...[/cyan]")
+
+    # Check if it's a git repo
+    git_dir = install_dir / ".git"
+    if git_dir.exists():
+        # Pull latest
+        result = subprocess.run(
+            ["git", "fetch", "--quiet"],
+            cwd=install_dir,
+            capture_output=True
+        )
+        if result.returncode != 0:
+            console.print(f"[red]Git fetch failed[/red]")
+            sys.exit(1)
+
+        result = subprocess.run(
+            ["git", "reset", "--hard", "origin/main", "--quiet"],
+            cwd=install_dir,
+            capture_output=True
+        )
+        if result.returncode != 0:
+            console.print(f"[red]Git reset failed[/red]")
+            sys.exit(1)
+
+        console.print("[green]✓[/green] Pulled latest from git")
+    else:
+        console.print("[yellow]Not a git repo - re-cloning...[/yellow]")
+        # Backup and re-clone
+        import shutil
+        backup = install_dir.with_name(".causeway.bak")
+        if backup.exists():
+            shutil.rmtree(backup)
+        shutil.move(install_dir, backup)
+
+        result = subprocess.run(
+            ["git", "clone", "--quiet", "https://github.com/codimusmaximus/causeway.git", str(install_dir)],
+            capture_output=True
+        )
+        if result.returncode != 0:
+            # Restore backup
+            shutil.move(backup, install_dir)
+            console.print(f"[red]Clone failed[/red]")
+            sys.exit(1)
+
+        # Copy over .env if it existed
+        old_env = backup / "causeway" / ".env"
+        new_env = install_dir / "causeway" / ".env"
+        if old_env.exists():
+            shutil.copy(old_env, new_env)
+
+        shutil.rmtree(backup)
+        console.print("[green]✓[/green] Re-cloned from git")
+
+    # Re-sync dependencies
+    console.print("[dim]Installing dependencies...[/dim]")
+    result = subprocess.run(
+        ["uv", "sync", "--quiet"],
+        cwd=install_dir,
+        capture_output=True
+    )
+    if result.returncode != 0:
+        # Try without --quiet for error info
+        subprocess.run(["uv", "sync"], cwd=install_dir)
+
+    console.print("[green]✓[/green] Dependencies updated")
+    console.print("\n[bold green]Update complete![/bold green]")
+
+
 def cmd_setup(reset: bool = False):
     """Run setup wizard. Use --reset to reconfigure everything."""
     from rich.console import Console
@@ -473,7 +553,8 @@ def main():
     usage = """causeway - rule enforcement for Claude Code
 
 Commands:
-    connect        Add hooks & MCP to Claude Code (run from your project)
+    connect        Add hooks & MCP to Claude Code (run once, works globally)
+    update         Update causeway to the latest version
     setup          Reconfigure email, provider, and API key
     setup --reset  Reset all configuration
     list           List active rules
@@ -492,6 +573,8 @@ Commands:
         cmd_init()
     elif cmd == "connect":
         cmd_connect()
+    elif cmd == "update":
+        cmd_update()
     elif cmd == "setup":
         reset = "--reset" in sys.argv
         cmd_setup(reset=reset)

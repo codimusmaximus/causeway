@@ -4,7 +4,8 @@
 
 API_URL="https://causeway-api.fly.dev"
 CAUSEWAY_DIR="$HOME/.causeway"
-VERSION="0.1.0"
+VERSION_FILE="$CAUSEWAY_DIR/VERSION"
+VERSION=$(cat "$VERSION_FILE" 2>/dev/null || echo "0.0.0")
 ID_FILE="$CAUSEWAY_DIR/.install_id"
 
 # Get or create install ID
