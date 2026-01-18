@@ -82,6 +82,37 @@ fi
 
 chmod +x "$HOME/.local/bin/causeway"
 
+# Ask about call-home telemetry
+echo ""
+echo "Help improve Causeway by sending anonymous usage data"
+echo "(install ID, version, platform - no personal data)"
+echo ""
+read -p "Enable anonymous usage telemetry? [Y/n] " CALL_HOME_ANSWER
+CALL_HOME_ANSWER=${CALL_HOME_ANSWER:-Y}
+
+# Create initial .env with call-home setting
+ENV_FILE="$INSTALL_DIR/causeway/.env"
+if [ ! -f "$ENV_FILE" ]; then
+    if [[ "$CALL_HOME_ANSWER" =~ ^[Nn] ]]; then
+        echo "CAUSEWAY_CALL_HOME=false" > "$ENV_FILE"
+        echo "Telemetry disabled."
+    else
+        echo "CAUSEWAY_CALL_HOME=true" > "$ENV_FILE"
+        echo "Telemetry enabled."
+    fi
+else
+    # Update existing .env if CAUSEWAY_CALL_HOME is not set
+    if ! grep -q "^CAUSEWAY_CALL_HOME=" "$ENV_FILE" 2>/dev/null; then
+        if [[ "$CALL_HOME_ANSWER" =~ ^[Nn] ]]; then
+            echo "CAUSEWAY_CALL_HOME=false" >> "$ENV_FILE"
+            echo "Telemetry disabled."
+        else
+            echo "CAUSEWAY_CALL_HOME=true" >> "$ENV_FILE"
+            echo "Telemetry enabled."
+        fi
+    fi
+fi
+
 # Add to PATH if needed
 if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
     echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.zshrc" 2>/dev/null || true

@@ -6,6 +6,16 @@ API_URL="https://causeway-api.fly.dev"
 GITHUB_API="https://api.github.com/repos/codimusmaximus/causeway/releases/latest"
 CAUSEWAY_DIR="$HOME/.causeway"
 ID_FILE="$CAUSEWAY_DIR/.install_id"
+ENV_FILE="$CAUSEWAY_DIR/causeway/.env"
+
+# Read call-home setting from config (default to true for backward compatibility)
+CALL_HOME="true"
+if [ -f "$ENV_FILE" ]; then
+    CALL_HOME_VALUE=$(grep "^CAUSEWAY_CALL_HOME=" "$ENV_FILE" 2>/dev/null | cut -d'=' -f2)
+    if [ "$CALL_HOME_VALUE" = "false" ]; then
+        CALL_HOME="false"
+    fi
+fi
 
 # Source version helper
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -24,13 +34,15 @@ fi
 PLATFORM=$(uname -s | tr '[:upper:]' '[:lower:]')
 ARCH=$(uname -m)
 
-# Send telemetry to fly.dev (fire and forget)
-curl -s -X POST "$API_URL/ping" \
-    -H "Content-Type: application/json" \
-    -d "{\"install_id\":\"$INSTALL_ID\",\"version\":\"$VERSION\",\"platform\":\"$PLATFORM\",\"arch\":\"$ARCH\"}" \
-    --connect-timeout 3 \
-    --max-time 5 \
-    >/dev/null 2>&1 &
+# Send telemetry to fly.dev (fire and forget) - only if call-home is enabled
+if [ "$CALL_HOME" = "true" ]; then
+    curl -s -X POST "$API_URL/ping" \
+        -H "Content-Type: application/json" \
+        -d "{\"install_id\":\"$INSTALL_ID\",\"version\":\"$VERSION\",\"platform\":\"$PLATFORM\",\"arch\":\"$ARCH\"}" \
+        --connect-timeout 3 \
+        --max-time 5 \
+        >/dev/null 2>&1 &
+fi
 
 # Check for updates via GitHub API (unless --silent)
 if [ "$1" != "--silent" ]; then

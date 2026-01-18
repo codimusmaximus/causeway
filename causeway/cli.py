@@ -121,8 +121,8 @@ def interactive_setup():
     console = Console()
     config = load_config()
 
-    # Check if already configured
-    if config.get("CAUSEWAY_EMAIL") and config.get("OPENAI_API_KEY"):
+    # Check if already configured (only API key is required)
+    if config.get("OPENAI_API_KEY"):
         console.print("[dim]Already configured. Skipping setup.[/dim]\n")
         return config
 
@@ -135,15 +135,17 @@ def interactive_setup():
     ))
     console.print()
 
-    # Email
+    # Email (optional)
     email = config.get("CAUSEWAY_EMAIL", "")
     if not email:
-        while True:
-            email = Prompt.ask("[bold]Email[/bold] [dim](for updates & support)[/dim]")
+        console.print("[dim]We'd like your email to keep you up to date on The AI Substrate[/dim]")
+        email = Prompt.ask("[bold]Email[/bold] [dim](optional, press Enter to skip)[/dim]", default="")
+        if email:
             if EMAIL_REGEX.match(email):
                 config["CAUSEWAY_EMAIL"] = email
-                break
-            console.print("[red]Please enter a valid email address.[/red]")
+            else:
+                console.print("[yellow]Invalid email format - skipping[/yellow]")
+                email = ""
         console.print()
 
     # Provider selection (OpenAI only)
@@ -180,9 +182,18 @@ def interactive_setup():
                 console.print(f"[red]\u2717 {msg}[/red] - try again")
         console.print()
 
+    # Call-home telemetry opt-in
+    if "CAUSEWAY_CALL_HOME" not in config:
+        from rich.prompt import Confirm
+        console.print("[dim]Help improve Causeway by sending anonymous usage data[/dim]")
+        console.print("[dim](install ID, version, platform - no personal data)[/dim]")
+        call_home = Confirm.ask("Enable anonymous usage telemetry?", default=True)
+        config["CAUSEWAY_CALL_HOME"] = "true" if call_home else "false"
+        console.print()
+
     save_config(config)
 
-    # Register with API
+    # Register with API (only if email provided)
     if email and provider:
         register_user(email, provider)
 
@@ -486,12 +497,15 @@ def cmd_setup(reset: bool = False):
         console.print("[yellow]Configuration reset.[/yellow]\n")
 
     # Show current config if exists
-    if config.get("CAUSEWAY_EMAIL") or config.get("CAUSEWAY_PROVIDER"):
+    if config.get("CAUSEWAY_EMAIL") or config.get("CAUSEWAY_PROVIDER") or config.get("OPENAI_API_KEY"):
+        call_home_status = config.get("CAUSEWAY_CALL_HOME", "true")
+        call_home_display = "[green]enabled[/green]" if call_home_status == "true" else "[yellow]disabled[/yellow]"
         console.print(Panel.fit(
             f"[bold]Current Configuration[/bold]\n\n"
-            f"Email:    [cyan]{config.get('CAUSEWAY_EMAIL', '[not set]')}[/cyan]\n"
-            f"Provider: [cyan]{config.get('CAUSEWAY_PROVIDER', '[not set]')}[/cyan]\n"
-            f"API Key:  [cyan]{'configured' if config.get('OPENAI_API_KEY') else '[not set]'}[/cyan]",
+            f"Email:     [cyan]{config.get('CAUSEWAY_EMAIL', '[not set]')}[/cyan]\n"
+            f"Provider:  [cyan]{config.get('CAUSEWAY_PROVIDER', '[not set]')}[/cyan]\n"
+            f"API Key:   [cyan]{'configured' if config.get('OPENAI_API_KEY') else '[not set]'}[/cyan]\n"
+            f"Call-home: {call_home_display}",
             border_style="dim"
         ))
         console.print()
@@ -513,13 +527,15 @@ def cmd_setup(reset: bool = False):
     ))
     console.print()
 
-    # Email
-    while True:
-        email = Prompt.ask("[bold]Email[/bold] [dim](for updates & support)[/dim]")
+    # Email (optional)
+    console.print("[dim]We'd like your email to keep you up to date on The AI Substrate[/dim]")
+    email = Prompt.ask("[bold]Email[/bold] [dim](optional, press Enter to skip)[/dim]", default="")
+    if email:
         if EMAIL_REGEX.match(email):
             config["CAUSEWAY_EMAIL"] = email
-            break
-        console.print("[red]Please enter a valid email address.[/red]")
+        else:
+            console.print("[yellow]Invalid email format - skipping[/yellow]")
+            email = ""
     console.print()
 
     # Provider (OpenAI only)
@@ -552,27 +568,93 @@ def cmd_setup(reset: bool = False):
             console.print(f"[red]\u2717 {msg}[/red] - try again")
     console.print()
 
+    # Call-home telemetry opt-in
+    console.print("[dim]Help improve Causeway by sending anonymous usage data[/dim]")
+    console.print("[dim](install ID, version, platform - no personal data)[/dim]")
+    call_home = Confirm.ask("Enable anonymous usage telemetry?", default=True)
+    config["CAUSEWAY_CALL_HOME"] = "true" if call_home else "false"
+    console.print()
+
     save_config(config)
-    register_user(email, provider)
+
+    # Register with API (only if email provided)
+    if email:
+        register_user(email, provider)
 
     console.print(Panel.fit(
         "[bold green]Configuration saved![/bold green]",
         border_style="green"
     ))
 
+
+def cmd_config(args: list[str]):
+    """Show or modify configuration."""
+    from rich.console import Console
+    from rich.panel import Panel
+
+    console = Console()
+    config = load_config()
+
+    # No args: show current config
+    if not args:
+        call_home_status = config.get("CAUSEWAY_CALL_HOME", "true")
+        call_home_display = "[green]enabled[/green]" if call_home_status == "true" else "[yellow]disabled[/yellow]"
+        console.print(Panel.fit(
+            f"[bold]Current Configuration[/bold]\n\n"
+            f"Email:     [cyan]{config.get('CAUSEWAY_EMAIL', '[not set]')}[/cyan]\n"
+            f"Provider:  [cyan]{config.get('CAUSEWAY_PROVIDER', '[not set]')}[/cyan]\n"
+            f"API Key:   [cyan]{'configured' if config.get('OPENAI_API_KEY') else '[not set]'}[/cyan]\n"
+            f"Call-home: {call_home_display}",
+            border_style="dim"
+        ))
+        return
+
+    # Handle call-home subcommand
+    if args[0] == "call-home":
+        if len(args) == 1:
+            # Show call-home status
+            status = config.get("CAUSEWAY_CALL_HOME", "true")
+            if status == "true":
+                console.print("[green]Call-home telemetry is enabled[/green]")
+            else:
+                console.print("[yellow]Call-home telemetry is disabled[/yellow]")
+            return
+
+        action = args[1].lower()
+        if action in ("on", "true", "enable", "enabled"):
+            config["CAUSEWAY_CALL_HOME"] = "true"
+            save_config(config)
+            console.print("[green]Call-home telemetry enabled[/green]")
+        elif action in ("off", "false", "disable", "disabled"):
+            config["CAUSEWAY_CALL_HOME"] = "false"
+            save_config(config)
+            console.print("[yellow]Call-home telemetry disabled[/yellow]")
+        else:
+            console.print(f"[red]Unknown action: {action}[/red]")
+            console.print("Usage: causeway config call-home [on|off]")
+        return
+
+    console.print(f"[red]Unknown config option: {args[0]}[/red]")
+    console.print("Usage: causeway config [call-home [on|off]]")
+
+
 def main():
     usage = """causeway - rule enforcement for Claude Code
 
 Commands:
-    connect        Add hooks & MCP to Claude Code (run from your project)
-    setup          Reconfigure email, provider, and API key
-    setup --reset  Reset all configuration
-    update         Update to latest release
-    update --edge  Update to latest main branch (edge)
-    list           List active rules
-    rulesets       List available rulesets
-    add <set>      Add a ruleset
-    ui             Start dashboard at localhost:8000
+    connect              Add hooks & MCP to Claude Code (run from your project)
+    setup                Reconfigure email, provider, and API key
+    setup --reset        Reset all configuration
+    config               Show current configuration
+    config call-home     Show call-home telemetry status
+    config call-home on  Enable call-home telemetry
+    config call-home off Disable call-home telemetry
+    update               Update to latest release
+    update --edge        Update to latest main branch (edge)
+    list                 List active rules
+    rulesets             List available rulesets
+    add <set>            Add a ruleset
+    ui                   Start dashboard at localhost:8000
 """
 
     if len(sys.argv) < 2:
@@ -588,6 +670,8 @@ Commands:
     elif cmd == "setup":
         reset = "--reset" in sys.argv
         cmd_setup(reset=reset)
+    elif cmd == "config":
+        cmd_config(sys.argv[2:])
     elif cmd == "update":
         edge = "--edge" in sys.argv
         cmd_update(edge=edge)
