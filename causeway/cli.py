@@ -396,7 +396,7 @@ def cmd_update(edge: bool = False):
             new_version = get_local_version()
             console.print()
             console.print(Panel.fit(
-                f"[bold green]Updated to edge![/bold green]\n[dim]Now at:[/dim] {new_version}",
+                f"[bold green]Updated to edge![/bold green] {new_version}",
                 border_style="green"
             ))
         except Exception as e:
@@ -446,7 +446,7 @@ def cmd_update(edge: bool = False):
             new_version = get_local_version()
             console.print()
             console.print(Panel.fit(
-                f"[bold green]Updated to {latest}![/bold green]\n[dim]Now at:[/dim] {new_version}",
+                f"[bold green]Updated to {latest}![/bold green] {new_version}",
                 border_style="green"
             ))
         except Exception as e:
