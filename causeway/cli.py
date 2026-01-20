@@ -581,12 +581,13 @@ def cmd_setup(reset: bool = False):
     if email:
         register_user(email, provider)
 
-    console.print(Panel.fit(
-        "[bold green]Configuration saved![/bold green]",
-        border_style="green"
-    ))
     console.print()
-    console.print("Run [cyan]causeway connect[/cyan] in your project directory to enable rules.")
+    console.print(Panel.fit(
+        "[bold green]Setup complete![/bold green]\n\n"
+        "Run [cyan]causeway connect[/cyan] in your project directory to enable rules.",
+        border_style="green",
+        padding=(1, 2)
+    ))
     console.print()
 
 
@@ -645,9 +646,9 @@ def main():
     usage = """causeway - rule enforcement for Claude Code
 
 Commands:
-    connect              Add hooks & MCP to Claude Code (run from your project)
-    setup                Reconfigure email, provider, and API key
+    setup                Configure email, provider, and API key
     setup --reset        Reset all configuration
+    connect              Add hooks & MCP to Claude Code (run from your project)
     config               Show current configuration
     config call-home     Show call-home telemetry status
     config call-home on  Enable call-home telemetry
@@ -658,6 +659,7 @@ Commands:
     rulesets             List available rulesets
     add <set>            Add a ruleset
     ui                   Start dashboard at localhost:8000
+    version              Show version information
 """
 
     if len(sys.argv) < 2:
@@ -693,6 +695,10 @@ Commands:
         cmd_list()
     elif cmd == "ui":
         cmd_ui()
+    elif cmd in ("version", "--version", "-v"):
+        sys.path.insert(0, str(CAUSEWAY_DIR))
+        from version import get_local_version
+        print(f"causeway {get_local_version()}")
     else:
         print(f"Unknown command: {cmd}")
         print(usage)

@@ -4,32 +4,39 @@ set -e
 INSTALL_DIR="$HOME/.causeway"
 REPO="https://github.com/codimusmaximus/causeway.git"
 
-echo "Installing causeway..."
+# Colors
+GREEN='\033[0;32m'
+CYAN='\033[0;36m'
+DIM='\033[2m'
+BOLD='\033[1m'
+NC='\033[0m' # No Color
+
+echo -e "${BOLD}Installing causeway...${NC}"
 
 # Always use uv - it handles platform detection correctly for native packages like sqlite-vec
 # (pip has issues installing the correct architecture on some systems)
 if command -v uv &> /dev/null; then
-    echo "Found uv"
+    echo -e "${DIM}Found uv${NC}"
 else
-    echo "Installing uv (recommended package manager)..."
+    echo -e "${DIM}Installing uv (recommended package manager)...${NC}"
     curl -LsSf https://astral.sh/uv/install.sh | sh
     export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
 fi
 
 # Clone or update
 if [ -d "$INSTALL_DIR" ]; then
-    echo "Updating..."
+    echo -e "${DIM}Updating...${NC}"
     cd "$INSTALL_DIR"
     git fetch --quiet
     git reset --hard origin/main --quiet
 else
-    echo "Downloading..."
+    echo -e "${DIM}Downloading...${NC}"
     git clone --quiet "$REPO" "$INSTALL_DIR"
     cd "$INSTALL_DIR"
 fi
 
 # Install dependencies
-echo "Installing dependencies..."
+echo -e "${DIM}Installing dependencies...${NC}"
 uv sync --quiet 2>/dev/null || uv sync
 
 # Create wrapper script for uv
@@ -48,11 +55,11 @@ if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
 fi
 
 echo ""
-echo "  ╔═══════════════════════════════════════╗"
-echo "  ║                                       ║"
-echo "  ║       Causeway installed!             ║"
-echo "  ║                                       ║"
-echo "  ╚═══════════════════════════════════════╝"
+echo -e "  ${GREEN}╔═══════════════════════════════════════╗${NC}"
+echo -e "  ${GREEN}║                                       ║${NC}"
+echo -e "  ${GREEN}║       ${BOLD}Causeway installed!${NC}${GREEN}             ║${NC}"
+echo -e "  ${GREEN}║                                       ║${NC}"
+echo -e "  ${GREEN}╚═══════════════════════════════════════╝${NC}"
 echo ""
-echo "  Run 'causeway setup' to configure your environment"
+echo -e "  Run ${CYAN}causeway setup${NC} to configure your environment"
 echo ""
