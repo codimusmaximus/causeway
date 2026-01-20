@@ -6,32 +6,14 @@ REPO="https://github.com/codimusmaximus/causeway.git"
 
 echo "Installing causeway..."
 
-# Find Python
-find_python() {
-    if command -v python3 &> /dev/null; then
-        echo "python3"
-    elif command -v python &> /dev/null; then
-        # Verify it's Python 3
-        if python -c "import sys; sys.exit(0 if sys.version_info[0] >= 3 else 1)" 2>/dev/null; then
-            echo "python"
-        fi
-    fi
-}
-
-PYTHON_CMD=$(find_python)
-
-# Check for uv, python3, or python
+# Always use uv - it handles platform detection correctly for native packages like sqlite-vec
+# (pip has issues installing the correct architecture on some systems)
 if command -v uv &> /dev/null; then
-    USE_UV=1
     echo "Found uv"
-elif [ -n "$PYTHON_CMD" ]; then
-    USE_UV=0
-    echo "Found $PYTHON_CMD (no uv - will use venv)"
 else
-    echo "No Python found. Installing uv (includes Python)..."
+    echo "Installing uv (recommended package manager)..."
     curl -LsSf https://astral.sh/uv/install.sh | sh
     export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
-    USE_UV=1
 fi
 
 # Clone or update
@@ -49,36 +31,14 @@ fi
 # Install dependencies
 echo "Installing dependencies..."
 
-if [ "$USE_UV" = "1" ]; then
-    uv sync --quiet 2>/dev/null || uv sync
+uv sync --quiet 2>/dev/null || uv sync
 
-    # Create wrapper script for uv
-    mkdir -p "$HOME/.local/bin"
-    cat > "$HOME/.local/bin/causeway" << 'WRAPPER'
+# Create wrapper script for uv
+mkdir -p "$HOME/.local/bin"
+cat > "$HOME/.local/bin/causeway" << 'WRAPPER'
 #!/bin/bash
 CAUSEWAY_CWD="$(pwd)" exec uv run --directory "$HOME/.causeway" causeway "$@"
 WRAPPER
-else
-    # Create venv and install with pip
-    PYTHON_CMD=$(find_python)
-    VENV_DIR="$INSTALL_DIR/.venv"
-
-    if [ ! -d "$VENV_DIR" ]; then
-        echo "Creating virtual environment..."
-        $PYTHON_CMD -m venv "$VENV_DIR"
-    fi
-
-    echo "Installing packages..."
-    "$VENV_DIR/bin/pip" install --quiet --upgrade pip
-    "$VENV_DIR/bin/pip" install --quiet -e "$INSTALL_DIR"
-
-    # Create wrapper script for venv
-    mkdir -p "$HOME/.local/bin"
-    cat > "$HOME/.local/bin/causeway" << 'WRAPPER'
-#!/bin/bash
-CAUSEWAY_CWD="$(pwd)" exec "$HOME/.causeway/.venv/bin/python" -m causeway "$@"
-WRAPPER
-fi
 
 chmod +x "$HOME/.local/bin/causeway"
 
