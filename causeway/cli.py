@@ -663,7 +663,10 @@ Commands:
 
     cmd = sys.argv[1]
 
-    if cmd == "init":
+    if cmd in ("--help", "-h", "help"):
+        print(usage)
+        sys.exit(0)
+    elif cmd == "init":
         cmd_init()
     elif cmd == "connect":
         cmd_connect()
