@@ -238,10 +238,11 @@ def cmd_connect():
     hooks = settings.setdefault("hooks", {})
 
     # Pre-tool hook: check rules before execution
+    # CAUSEWAY_CWD captures pwd before uv --directory changes it
     hooks["PreToolUse"] = [
         {
             "matcher": "*",
-            "hooks": [{"type": "command", "command": f"uv run --directory {CAUSEWAY_ROOT} causeway-check"}]
+            "hooks": [{"type": "command", "command": f"CAUSEWAY_CWD=\"$(pwd)\" uv run --directory {CAUSEWAY_ROOT} causeway-check"}]
         }
     ]
 
@@ -249,7 +250,7 @@ def cmd_connect():
     hooks["Stop"] = [
         {
             "matcher": "*",
-            "hooks": [{"type": "command", "command": f"uv run --directory {CAUSEWAY_ROOT} causeway-learn"}]
+            "hooks": [{"type": "command", "command": f"CAUSEWAY_CWD=\"$(pwd)\" uv run --directory {CAUSEWAY_ROOT} causeway-learn"}]
         }
     ]
 
