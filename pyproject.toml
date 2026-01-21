@@ -37,6 +37,11 @@ packages = ["causeway"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
+asyncio_mode = "auto"
+markers = [
+    "integration: marks tests as integration tests (require API keys)",
+    "slow: marks tests as slow (deselect with '-m not slow')",
+]
 
 [dependency-groups]
 dev = [
