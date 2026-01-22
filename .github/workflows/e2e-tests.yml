@@ -1,0 +1,62 @@
+name: E2E Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  e2e-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build E2E test image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: tests/e2e/Dockerfile
+          push: false
+          load: true
+          tags: causeway-e2e:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Create logs directory
+        run: mkdir -p ${{ github.workspace }}/e2e-logs
+
+      - name: Run E2E tests
+        run: |
+          docker run --rm \
+            -e ANTHROPIC_API_KEY="${{ secrets.ANTHROPIC_API_KEY }}" \
+            -e OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}" \
+            -e LOG_DIR=/e2e/logs \
+            -v ${{ github.workspace }}/e2e-logs:/e2e/logs \
+            causeway-e2e:latest
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-logs
+          path: ${{ github.workspace }}/e2e-logs/
+          retention-days: 7
+
+      - name: Upload database files on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-databases
+          path: ${{ github.workspace }}/e2e-logs/*.db
+          retention-days: 7

@@ -1,0 +1,11 @@
+name: "Learning agent test"
+description: "Test that the learning agent can process corrections (optional test)"
+
+prompt: "Create a file called test.txt with the content 'hello world'"
+
+verify:
+  decision: "allow"
+  tool_name: "Write"
+
+timeout: 180
+optional: true

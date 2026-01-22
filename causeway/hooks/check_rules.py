@@ -144,8 +144,12 @@ def main():
         justification = tool_input.get('description') or tool_input.get('justification')
 
     # Convert tool input to string for analysis
+    # For Bash tool, extract the command field for better pattern matching
     if isinstance(tool_input, str):
         tool_input_str = tool_input
+    elif isinstance(tool_input, dict) and tool_name == 'Bash' and 'command' in tool_input:
+        # Use command directly for Bash - patterns expect raw commands
+        tool_input_str = tool_input['command']
     else:
         tool_input_str = json.dumps(tool_input, indent=2)
 

@@ -1,0 +1,11 @@
+name: "Warn about pip install usage"
+description: "Verify python-safety warns about pip install (recommending uv instead)"
+
+prompt: "Run the command: pip install requests"
+
+verify:
+  decision: "block"
+  tool_name: "Bash"
+
+timeout: 120
+optional: false
