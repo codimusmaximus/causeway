@@ -390,24 +390,29 @@ Violates any rule?""")
     return result.output
 
 
-def ensure_rule_embedding(rule_id: int, description: str):
-    """Ensure a rule has an embedding."""
+
+def update_rule_embedding(rule_id: int, description: str, force: bool = True):
+    """Update or create embedding for a rule.
+    
+    If force is False, only generates if it doesn't exist.
+    """
     conn = get_connection()
     try:
-        existing = conn.execute(
-            "SELECT 1 FROM rule_embeddings WHERE rule_id = ?", (rule_id,)
-        ).fetchone()
-
-        if existing:
-            return
+        if not force:
+            existing = conn.execute(
+                "SELECT 1 FROM rule_embeddings WHERE rule_id = ?", (rule_id,)
+            ).fetchone()
+            if existing:
+                return
 
         embedding = generate_embedding(description)
         embedding_bytes = serialize_vector(embedding)
 
-        conn.execute(
-            "INSERT INTO rule_embeddings (rule_id, embedding) VALUES (?, ?)",
-            (rule_id, embedding_bytes)
-        )
+        conn.execute("DELETE FROM rule_embeddings WHERE rule_id = ?", (rule_id,))
+        conn.execute("""
+            INSERT INTO rule_embeddings (rule_id, embedding) 
+            VALUES (?, ?)
+        """, (rule_id, embedding_bytes))
         conn.commit()
     finally:
         conn.close()
@@ -425,7 +430,7 @@ def sync_all_rule_embeddings():
         """)
 
         for row in cursor.fetchall():
-            ensure_rule_embedding(row['id'], row['description'])
+            update_rule_embedding(row['id'], row['description'], force=False)
     finally:
         conn.close()
 

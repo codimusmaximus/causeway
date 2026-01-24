@@ -2,7 +2,7 @@
 import json
 import sqlite3
 from .db import get_connection, init_db, serialize_vector
-from .rule_agent import ensure_rule_embedding
+from .rule_agent import update_rule_embedding
 
 # Graceful MCP import - don't exit on import failure
 _MCP_AVAILABLE = False
@@ -451,7 +451,7 @@ async def call_tool(name: str, arguments: dict):
                 embed_text += f" Problem: {problem}"
             if solution:
                 embed_text += f" Solution: {solution}"
-            ensure_rule_embedding(rule_id, embed_text)
+            update_rule_embedding(rule_id, embed_text, force=False)
 
             return [TextContent(type="text", text=f"Rule added with ID: {rule_id}")]
 
@@ -498,7 +498,7 @@ async def call_tool(name: str, arguments: dict):
                     embed_text += f" Solution: {updated['solution']}"
                 conn.execute("DELETE FROM rule_embeddings WHERE rule_id = ?", (rule_id,))
                 conn.commit()
-                ensure_rule_embedding(rule_id, embed_text)
+                update_rule_embedding(rule_id, embed_text, force=True)
 
             return [TextContent(type="text", text=f"Rule {rule_id} updated.")]
 
